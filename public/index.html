@@ -14,18 +14,17 @@
   .dot { width: 10px; height: 10px; border-radius: 50%; background: #444; }
   .dot.online { background: #4ade80; box-shadow: 0 0 10px #4ade8066; }
   .card { background: #1a1a2e; border-radius: 16px; padding: 24px; margin-bottom: 12px; }
-  .card-title { font-size: 12px; color: #888; margin-bottom: 12px; }
-  .input { width: 100%; padding: 14px; border: 2px solid #2a2a4a; border-radius: 12px; font-size: 24px; text-align: center; background: #0f0f1a; color: #fff; outline: none; text-transform: uppercase; letter-spacing: 4px; }
-  .input:focus { border-color: #667eea; }
   .btn { width: 100%; padding: 14px; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 10px; }
   .btn:active { opacity: .8; }
   .btn-primary { background: linear-gradient(135deg,#667eea,#764ba2); color: #fff; }
   .separator { display: flex; align-items: center; gap: 12px; color: #555; font-size: 12px; margin: 16px 0; }
   .separator::before,.separator::after { content: ''; flex: 1; height: 1px; background: #2a2a4a; }
+  .input { width: 100%; padding: 14px; border: 2px solid #2a2a4a; border-radius: 12px; font-size: 24px; text-align: center; background: #0f0f1a; color: #fff; outline: none; text-transform: uppercase; letter-spacing: 4px; }
+  .input:focus { border-color: #667eea; }
 
   .room-box { background: #1a1a2e; border-radius: 16px; padding: 20px; margin-bottom: 24px; }
   .room-label { font-size: 12px; color: #888; }
-  .room-code { font-size: 36px; font-weight: 700; letter-spacing: 6px; color: #667eea; margin: 8px 0; }
+  .room-code { font-size: 40px; font-weight: 700; letter-spacing: 8px; color: #667eea; margin: 8px 0; }
   .btn-share { padding: 10px 24px; border: none; border-radius: 10px; background: #667eea; color: #fff; font-size: 14px; cursor: pointer; }
 
   .buzz-btn {
@@ -62,47 +61,35 @@
     90% { transform: translate(-2px,-1px); }
   }
   .container.shake { animation: screenShake .5s ease-out; }
-
   .flash-overlay { position: fixed; top:0; left:0; right:0; bottom:0; pointer-events: none; z-index: 999; }
   .flash-overlay.go { background: radial-gradient(circle at center, #fff8 0%, #f5576c44 50%, transparent 80%); animation: flashFade .6s ease-out forwards; }
   @keyframes flashFade { 0% { opacity: 1; } 100% { opacity: 0; } }
-
   .banner { position: fixed; top: -80px; left:0; right:0; background: linear-gradient(135deg,#f093fb,#f5576c); color: #fff; text-align: center; padding: 16px; font-size: 18px; font-weight: 600; z-index: 1000; transition: top .3s cubic-bezier(.34,1.56,.64,1); box-shadow: 0 4px 20px #f5576c88; }
   .banner.show { top: 0; }
-
   .hint { color: #666; font-size: 13px; margin-top: 16px; }
   .footer { margin-top: 32px; font-size: 11px; color: #333; }
-
   #roomPage { display: none; }
 </style>
 </head>
 <body>
-
 <div class="flash-overlay" id="flashOverlay"></div>
 <div class="banner" id="banner">💥 对方戳了你一下！</div>
-
 <div class="container" id="container">
   <div class="status-row">
     <span class="dot" id="dot"></span>
     <span id="statusText">连接中...</span>
   </div>
-
-  <!-- 首页 -->
   <div id="homePage">
     <h1>TapBuzz</h1>
     <div class="subtitle">点一下，对方就有反应</div>
-    <div class="card">
-      <button class="btn btn-primary" onclick="createRoom()">创建房间</button>
-    </div>
+    <div class="card"><button class="btn btn-primary" onclick="createRoom()">创建房间</button></div>
     <div class="separator">或者</div>
     <div class="card">
       <input class="input" id="roomInput" placeholder="输入房间号" maxlength="6" autocomplete="off">
       <button class="btn btn-primary" onclick="joinRoom()">加入</button>
     </div>
-    <div class="footer">需要联网</div>
+    <div class="footer">无需服务器，MQTT 中转</div>
   </div>
-
-  <!-- 房间页 -->
   <div id="roomPage">
     <h1>TapBuzz</h1>
     <div class="room-box">
@@ -116,152 +103,154 @@
   </div>
 </div>
 
+<script src="https://unpkg.com/mqtt@5.10.4/dist/mqtt.min.js"></script>
 <script>
-// ========== WebSocket 连接 ==========
-const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-const wsUrl = proto + '//' + location.host;
-let ws = null;
-let roomId = null;
-let paired = false;
+// ========== MQTT 连接（无需服务器） ==========
+const brokerUrl = 'wss://broker.emqx.io:8084/mqtt'
+let client = null
+let roomId = null
+let paired = false
+const TOPIC_PREFIX = 'tapbuzz/'
 
 function connect() {
-  ws = new WebSocket(wsUrl);
+  client = mqtt.connect(brokerUrl, {
+    clientId: 'tapbuzz_' + Math.random().toString(36).slice(2, 10),
+    clean: true
+  })
 
-  ws.onopen = () => {
-    setStatus('已连接');
-    document.getElementById('dot').className = 'dot online';
-  };
+  client.on('connect', () => {
+    document.getElementById('dot').className = 'dot online'
+    setStatus('已连接')
+  })
 
-  ws.onmessage = (e) => {
-    const msg = JSON.parse(e.data);
+  client.on('message', (topic, payload) => {
+    const msg = payload.toString()
+    if (msg === 'buzz') receiveBuzz()
+    else if (msg === 'ping') { /* keep-alive */ }
+  })
 
-    if (msg.type === 'joined') {
-      roomId = msg.roomId;
-      document.getElementById('roomCode').textContent = roomId;
-      document.getElementById('homePage').style.display = 'none';
-      document.getElementById('roomPage').style.display = 'block';
-    }
-
-    else if (msg.type === 'paired') {
-      paired = true;
-      document.getElementById('buzzBtn').className = 'buzz-btn';
-      document.getElementById('hint').innerHTML = '点击按钮，对方就有 <strong>反应</strong>';
-    }
-
-    else if (msg.type === 'buzz') {
-      receiveBuzz();
-    }
-
-    else if (msg.type === 'error') {
-      alert(msg.message);
-    }
-  };
-
-  ws.onclose = () => {
-    paired = false;
-    setStatus('连接断开，重连中...');
-    document.getElementById('buzzBtn').className = 'buzz-btn disabled';
-    setTimeout(connect, 2000);
-  };
+  client.on('error', () => setStatus('连接失败，请刷新重试'))
 }
 
-function setStatus(t) {
-  document.getElementById('statusText').textContent = t;
-}
-
-// ========== 房间管理 ==========
-function createRoom() {
-  if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'create' }));
+function subscribeRoom(rid) {
+  if (client) {
+    client.subscribe(TOPIC_PREFIX + rid)
+    client.on('message', (topic) => {
+      if (topic === TOPIC_PREFIX + rid && !paired) {
+        paired = true
+        document.getElementById('buzzBtn').className = 'buzz-btn'
+        document.getElementById('hint').innerHTML = '点击按钮，对方就有 <strong>反应</strong>'
+      }
+    })
   }
 }
 
+function publish(topic, msg) {
+  if (client) client.publish(TOPIC_PREFIX + topic, msg)
+}
+
+function setStatus(t) { document.getElementById('statusText').textContent = t }
+
+// ========== 房间管理 ==========
+function createRoom() {
+  roomId = Math.random().toString(36).slice(2, 8).toUpperCase()
+  subscribeRoom(roomId)
+  document.getElementById('roomCode').textContent = roomId
+  document.getElementById('homePage').style.display = 'none'
+  document.getElementById('roomPage').style.display = 'block'
+  setStatus('等待对方加入')
+  document.getElementById('hint').textContent = '将房间号发给对方'
+}
+
 function joinRoom() {
-  const code = document.getElementById('roomInput').value.trim().toUpperCase();
-  if (!code) return;
-  ws.send(JSON.stringify({ type: 'join', roomId: code }));
+  const code = document.getElementById('roomInput').value.trim().toUpperCase()
+  if (!code) return
+  roomId = code
+  subscribeRoom(code)
+  // 发一条 ping 让对方知道有人加入了
+  publish(code, 'ping')
+  document.getElementById('roomCode').textContent = code
+  document.getElementById('homePage').style.display = 'none'
+  document.getElementById('roomPage').style.display = 'block'
+  setStatus('已加入')
 }
 
 function copyRoom() {
-  const el = document.createElement('textarea');
-  el.value = roomId;
-  document.body.appendChild(el);
-  el.select();
-  document.execCommand('copy');
-  document.body.removeChild(el);
-  const btn = event.target;
-  btn.textContent = '已复制 ✓';
-  setTimeout(() => btn.textContent = '复制房间号', 1500);
+  const el = document.createElement('textarea')
+  el.value = roomId
+  document.body.appendChild(el)
+  el.select()
+  document.execCommand('copy')
+  document.body.removeChild(el)
+  const btn = event.target
+  btn.textContent = '已复制 ✓'
+  setTimeout(() => btn.textContent = '复制房间号', 1500)
 }
 
 function leaveRoom() {
-  roomId = null; paired = false;
-  document.getElementById('homePage').style.display = 'block';
-  document.getElementById('roomPage').style.display = 'none';
-  document.getElementById('buzzBtn').className = 'buzz-btn disabled';
-  if (ws) { ws.close(); ws = null; }
-  setTimeout(connect, 500);
+  roomId = null; paired = false
+  document.getElementById('homePage').style.display = 'block'
+  document.getElementById('roomPage').style.display = 'none'
+  document.getElementById('buzzBtn').className = 'buzz-btn disabled'
 }
 
 document.getElementById('roomInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') joinRoom();
-});
+  if (e.key === 'Enter') joinRoom()
+})
 
 // ========== 音效 ==========
-let audioCtx = null;
+let audioCtx = null
 function playSound() {
   try {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const c = audioCtx;
-    [200, 300, 400].forEach((freq, i) => {
-      const osc = c.createOscillator();
-      const gain = c.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.3, c.currentTime + i * 0.08);
-      gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + i * 0.08 + 0.15);
-      osc.connect(gain).connect(c.destination);
-      osc.start(c.currentTime + i * 0.08);
-      osc.stop(c.currentTime + i * 0.08 + 0.15);
-    });
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+    const c = audioCtx
+    ;[200, 300, 400].forEach((freq, i) => {
+      const osc = c.createOscillator()
+      const gain = c.createGain()
+      osc.type = 'sine'
+      osc.frequency.value = freq
+      gain.gain.setValueAtTime(0.3, c.currentTime + i * 0.08)
+      gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + i * 0.08 + 0.15)
+      osc.connect(gain).connect(c.destination)
+      osc.start(c.currentTime + i * 0.08)
+      osc.stop(c.currentTime + i * 0.08 + 0.15)
+    })
   } catch(e) {}
 }
 
 // ========== 发送 & 接收 ==========
 function sendBuzz() {
-  if (!paired || !ws) return;
-  ws.send(JSON.stringify({ type: 'buzz', roomId }));
-  document.getElementById('buzzBtn').innerHTML = '✓<br>已发送';
-  setTimeout(() => document.getElementById('buzzBtn').innerHTML = '👆<br>戳我', 300);
+  if (!roomId) return
+  publish(roomId, 'buzz')
+  document.getElementById('buzzBtn').innerHTML = '✓<br>已发送'
+  setTimeout(() => document.getElementById('buzzBtn').innerHTML = '👆<br>戳我', 300)
 }
 
 function receiveBuzz() {
-  // 振动
-  if (navigator.vibrate) navigator.vibrate([80, 40, 80, 40, 160]);
-  // 音效
-  playSound();
-  // 按钮动画
-  const btn = document.getElementById('buzzBtn');
-  btn.className = 'buzz-btn receiving';
-  btn.innerHTML = '💥<br>嗡嗡嗡';
-  // 全屏闪光
-  document.getElementById('flashOverlay').className = 'flash-overlay go';
-  setTimeout(() => document.getElementById('flashOverlay').className = 'flash-overlay', 700);
-  // 屏幕抖动
-  document.getElementById('container').classList.add('shake');
-  setTimeout(() => document.getElementById('container').classList.remove('shake'), 600);
-  // 横幅
-  const banner = document.getElementById('banner');
-  banner.className = 'banner show';
-  setTimeout(() => banner.className = 'banner', 1200);
-  // 恢复
+  paired = true
+  document.getElementById('buzzBtn').className = 'buzz-btn'
+  document.getElementById('hint').innerHTML = '点击按钮，对方就有 <strong>反应</strong>'
+
+  if (navigator.vibrate) navigator.vibrate([80, 40, 80, 40, 160])
+  playSound()
+
+  const btn = document.getElementById('buzzBtn')
+  btn.className = 'buzz-btn receiving'
+  btn.innerHTML = '💥<br>嗡嗡嗡'
+  document.getElementById('flashOverlay').className = 'flash-overlay go'
+  setTimeout(() => document.getElementById('flashOverlay').className = 'flash-overlay', 700)
+  document.getElementById('container').classList.add('shake')
+  setTimeout(() => document.getElementById('container').classList.remove('shake'), 600)
+  const banner = document.getElementById('banner')
+  banner.className = 'banner show'
+  setTimeout(() => banner.className = 'banner', 1200)
   setTimeout(() => {
-    btn.className = 'buzz-btn' + (paired ? '' : ' disabled');
-    btn.innerHTML = '👆<br>戳我';
-  }, 900);
+    btn.className = 'buzz-btn'
+    btn.innerHTML = '👆<br>戳我'
+  }, 900)
 }
 
-connect();
+connect()
 </script>
 </body>
 </html>
