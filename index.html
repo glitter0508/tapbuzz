@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>TapBuzz - 互振</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #0f0f1a; color: #fff; min-height: 100dvh; display: flex; align-items: center; justify-content: center; touch-action: manipulation; }
+  .container { width: 100%; max-width: 420px; padding: 32px 24px; text-align: center; }
+  h1 { font-size: 36px; font-weight: 700; margin-bottom: 4px; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .subtitle { color: #666; font-size: 14px; margin-bottom: 28px; }
+  .status-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 24px; font-size: 14px; color: #888; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #444; }
+  .dot.alone { background: #facc15; box-shadow: 0 0 10px #facc1566; }
+  .dot.paired { background: #4ade80; box-shadow: 0 0 10px #4ade8066; }
+  .share-area { background: #1a1a2e; border-radius: 16px; padding: 24px; margin-bottom: 28px; }
+  .share-area .label { font-size: 12px; color: #666; margin-bottom: 10px; }
+  .link-row { display: flex; gap: 8px; }
+  .link-row input { flex: 1; padding: 12px 14px; border: 1px solid #2a2a4a; border-radius: 10px; background: #0f0f1a; color: #fff; font-size: 14px; outline: none; }
+  .link-row button { padding: 12px 18px; border: none; border-radius: 10px; background: #667eea; color: #fff; font-size: 14px; cursor: pointer; white-space: nowrap; }
+  .link-row button:active { opacity: .8; }
+  .buzz-btn {
+    width: 220px; height: 220px; border-radius: 50%; border: none;
+    font-size: 28px; font-weight: 700; color: #fff;
+    background: linear-gradient(135deg, #f093fb, #f5576c);
+    box-shadow: 0 8px 40px #f5576c55;
+    cursor: pointer; transition: transform .08s, opacity .3s;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    margin: 0 auto;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 4px;
+  }
+  .buzz-btn:active { transform: scale(0.90); }
+  .buzz-btn.disabled { opacity: 0.35; pointer-events: none; }
+  @keyframes shake {
+    0%, 100% { transform: scale(1); }
+    20% { transform: scale(1.05) rotate(-2deg); }
+    40% { transform: scale(1.05) rotate(2deg); }
+    60% { transform: scale(1.02) rotate(-1deg); }
+    80% { transform: scale(1.02) rotate(1deg); }
+  }
+  .buzz-btn.shaking { animation: shake .4s ease 2; }
+  .hint { color: #666; font-size: 13px; margin-top: 16px; }
+  .hint strong { color: #667eea; }
+  .footer { margin-top: 32px; font-size: 11px; color: #333; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="status-row">
+    <span class="dot" id="dot"></span>
+    <span id="statusText">初始化中...</span>
+  </div>
+  <h1>TapBuzz</h1>
+  <div class="subtitle">点一下，对方手机就震动</div>
+  <div class="share-area" id="shareBox" style="display:none">
+    <div class="label">把此链接发给对方 👇</div>
+    <div class="link-row">
+      <input id="shareLink" readonly onclick="this.select()">
+      <button id="copyBtn" onclick="copyLink()">复制</button>
+    </div>
+  </div>
+  <button class="buzz-btn disabled" id="buzzBtn">👆<br>点我</button>
+  <div class="hint" id="hint">初始化中...</div>
+  <div class="footer">需要联网</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<script>
+// ========== 纯 P2P 连接 (PeerJS) ==========
+let peer = null;
+let conn = null;
+let paired = false;
+
+function init() {
+  const targetId = location.hash.replace(/^#/, '');
+
+  // 唯一的简短 ID
+  const myId = 'buzz_' + Math.random().toString(36).slice(2, 6);
+
+  peer = new Peer(myId);
+
+  peer.on('open', (id) => {
+    if (targetId) {
+      // 我是 B：通过 URL 中的 ID 连接对方
+      setStatus('alone', '正在连接对方...');
+      connectToPeer(targetId);
+    } else {
+      // 我是 A：显示分享链接，等待对方连接
+      const url = location.href.replace(/#.*$/, '') + '#' + id;
+      document.getElementById('shareLink').value = url;
+      document.getElementById('shareBox').style.display = 'block';
+      setStatus('alone', '等待对方加入');
+      document.getElementById('hint').innerHTML = '把上面的链接发给对方';
+    }
+  });
+
+  peer.on('connection', (c) => {
+    conn = c;
+    setupConnection();
+  });
+
+  peer.on('error', () => {
+    setStatus('', '连接失败，请刷新页面重试');
+  });
+}
+
+function connectToPeer(id) {
+  const c = peer.connect(id, { reliable: true });
+  c.on('open', () => {
+    conn = c;
+    setupConnection();
+  });
+  c.on('error', () => {
+    setStatus('', '连接失败，请确认对方还在页面');
+  });
+}
+
+function setupConnection() {
+  paired = true;
+  setStatus('paired', '已配对！');
+  document.getElementById('shareBox').style.display = 'none';
+  document.getElementById('buzzBtn').className = 'buzz-btn';
+  document.getElementById('hint').innerHTML = '点击按钮，对方手机就会 <strong>震动</strong>';
+
+  conn.on('data', (data) => {
+    if (data === 'buzz') receiveBuzz();
+  });
+
+  conn.on('close', () => {
+    paired = false;
+    setStatus('', '连接已断开');
+    document.getElementById('buzzBtn').className = 'buzz-btn disabled';
+  });
+}
+
+// ========== 界面 ==========
+function setStatus(state, text) {
+  document.getElementById('dot').className = 'dot' + (state ? ' ' + state : '');
+  document.getElementById('statusText').textContent = text;
+}
+
+function copyLink() {
+  const input = document.getElementById('shareLink');
+  input.select();
+  document.execCommand('copy');
+  const btn = document.getElementById('copyBtn');
+  btn.textContent = '已复制 ✓';
+  setTimeout(() => btn.textContent = '复制', 1500);
+}
+
+// ========== 振动 ==========
+function sendBuzz() {
+  if (!paired || !conn) return;
+  conn.send('buzz');
+  document.getElementById('buzzBtn').innerHTML = '✓<br>已发送';
+  setTimeout(() => document.getElementById('buzzBtn').innerHTML = '👆<br>点我', 300);
+}
+
+function receiveBuzz() {
+  if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 200]);
+  const btn = document.getElementById('buzzBtn');
+  btn.className = 'buzz-btn shaking';
+  btn.innerHTML = '💥<br>嗡~';
+  setTimeout(() => {
+    btn.className = 'buzz-btn' + (paired ? '' : ' disabled');
+    btn.innerHTML = '👆<br>点我';
+  }, 800);
+}
+
+init();
+</script>
+</body>
+</html>
