@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>TapBuzz - 互振</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system,'Segoe UI',sans-serif; background: #0f0f1a; color: #fff; min-height: 100dvh; display: flex; align-items: center; justify-content: center; touch-action: manipulation; overflow: hidden; }
+  .container { width: 100%; max-width: 420px; padding: 32px 24px; text-align: center; position: relative; z-index: 1; }
+  h1 { font-size: 36px; font-weight: 700; margin-bottom: 4px; background: linear-gradient(135deg,#667eea,#764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .subtitle { color: #666; font-size: 14px; margin-bottom: 24px; }
+  .status-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 20px; font-size: 14px; color: #888; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #444; }
+  .dot.online { background: #4ade80; box-shadow: 0 0 10px #4ade8066; }
+  .card { background: #1a1a2e; border-radius: 16px; padding: 24px; margin-bottom: 12px; }
+  .card-title { font-size: 12px; color: #888; margin-bottom: 12px; }
+  .input { width: 100%; padding: 14px; border: 2px solid #2a2a4a; border-radius: 12px; font-size: 24px; text-align: center; background: #0f0f1a; color: #fff; outline: none; text-transform: uppercase; letter-spacing: 4px; }
+  .input:focus { border-color: #667eea; }
+  .btn { width: 100%; padding: 14px; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 10px; }
+  .btn:active { opacity: .8; }
+  .btn-primary { background: linear-gradient(135deg,#667eea,#764ba2); color: #fff; }
+  .separator { display: flex; align-items: center; gap: 12px; color: #555; font-size: 12px; margin: 16px 0; }
+  .separator::before,.separator::after { content: ''; flex: 1; height: 1px; background: #2a2a4a; }
+
+  .room-box { background: #1a1a2e; border-radius: 16px; padding: 20px; margin-bottom: 24px; }
+  .room-label { font-size: 12px; color: #888; }
+  .room-code { font-size: 36px; font-weight: 700; letter-spacing: 6px; color: #667eea; margin: 8px 0; }
+  .btn-share { padding: 10px 24px; border: none; border-radius: 10px; background: #667eea; color: #fff; font-size: 14px; cursor: pointer; }
+
+  .buzz-btn {
+    width: 220px; height: 220px; border-radius: 50%; border: none;
+    font-size: 28px; font-weight: 700; color: #fff;
+    background: linear-gradient(135deg,#f093fb,#f5576c);
+    box-shadow: 0 8px 40px #f5576c55;
+    cursor: pointer; transition: transform .08s, opacity .3s;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    margin: 0 auto; display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 4px;
+  }
+  .buzz-btn:active { transform: scale(.9); }
+  .buzz-btn.disabled { opacity: .35; pointer-events: none; }
+
+  @keyframes buzzPulse {
+    0%   { transform: scale(1); box-shadow: 0 0 40px #f5576c55; }
+    15%  { transform: scale(1.2); box-shadow: 0 0 80px #f5576c, 0 0 120px #f093fb88; }
+    30%  { transform: scale(.95); box-shadow: 0 0 60px #f5576c; }
+    45%  { transform: scale(1.1); box-shadow: 0 0 100px #f093fb; }
+    60%  { transform: scale(1); box-shadow: 0 0 40px #f5576c55; }
+  }
+  .buzz-btn.receiving { animation: buzzPulse .8s ease-out; }
+  @keyframes screenShake {
+    0%,100% { transform: translate(0,0); }
+    10% { transform: translate(-4px,2px); }
+    20% { transform: translate(4px,-2px); }
+    30% { transform: translate(-3px,-1px); }
+    40% { transform: translate(3px,1px); }
+    50% { transform: translate(-2px,3px); }
+    60% { transform: translate(2px,-3px); }
+    70% { transform: translate(-1px,-2px); }
+    80% { transform: translate(1px,2px); }
+    90% { transform: translate(-2px,-1px); }
+  }
+  .container.shake { animation: screenShake .5s ease-out; }
+
+  .flash-overlay { position: fixed; top:0; left:0; right:0; bottom:0; pointer-events: none; z-index: 999; }
+  .flash-overlay.go { background: radial-gradient(circle at center, #fff8 0%, #f5576c44 50%, transparent 80%); animation: flashFade .6s ease-out forwards; }
+  @keyframes flashFade { 0% { opacity: 1; } 100% { opacity: 0; } }
+
+  .banner { position: fixed; top: -80px; left:0; right:0; background: linear-gradient(135deg,#f093fb,#f5576c); color: #fff; text-align: center; padding: 16px; font-size: 18px; font-weight: 600; z-index: 1000; transition: top .3s cubic-bezier(.34,1.56,.64,1); box-shadow: 0 4px 20px #f5576c88; }
+  .banner.show { top: 0; }
+
+  .hint { color: #666; font-size: 13px; margin-top: 16px; }
+  .footer { margin-top: 32px; font-size: 11px; color: #333; }
+
+  #roomPage { display: none; }
+</style>
+</head>
+<body>
+
+<div class="flash-overlay" id="flashOverlay"></div>
+<div class="banner" id="banner">💥 对方戳了你一下！</div>
+
+<div class="container" id="container">
+  <div class="status-row">
+    <span class="dot" id="dot"></span>
+    <span id="statusText">连接中...</span>
+  </div>
+
+  <!-- 首页 -->
+  <div id="homePage">
+    <h1>TapBuzz</h1>
+    <div class="subtitle">点一下，对方就有反应</div>
+    <div class="card">
+      <button class="btn btn-primary" onclick="createRoom()">创建房间</button>
+    </div>
+    <div class="separator">或者</div>
+    <div class="card">
+      <input class="input" id="roomInput" placeholder="输入房间号" maxlength="6" autocomplete="off">
+      <button class="btn btn-primary" onclick="joinRoom()">加入</button>
+    </div>
+    <div class="footer">需要联网</div>
+  </div>
+
+  <!-- 房间页 -->
+  <div id="roomPage">
+    <h1>TapBuzz</h1>
+    <div class="room-box">
+      <div class="room-label">房间号</div>
+      <div class="room-code" id="roomCode"></div>
+      <button class="btn-share" onclick="copyRoom()">复制房间号</button>
+    </div>
+    <button class="buzz-btn disabled" id="buzzBtn">👆<br>戳我</button>
+    <div class="hint" id="hint">等待对方加入...</div>
+    <div class="footer" style="cursor:pointer;color:#555;margin-top:20px" onclick="leaveRoom()">← 退出</div>
+  </div>
+</div>
+
+<script>
+// ========== WebSocket 连接 ==========
+const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+const wsUrl = proto + '//' + location.host;
+let ws = null;
+let roomId = null;
+let paired = false;
+
+function connect() {
+  ws = new WebSocket(wsUrl);
+
+  ws.onopen = () => {
+    setStatus('已连接');
+    document.getElementById('dot').className = 'dot online';
+  };
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+
+    if (msg.type === 'joined') {
+      roomId = msg.roomId;
+      document.getElementById('roomCode').textContent = roomId;
+      document.getElementById('homePage').style.display = 'none';
+      document.getElementById('roomPage').style.display = 'block';
+    }
+
+    else if (msg.type === 'paired') {
+      paired = true;
+      document.getElementById('buzzBtn').className = 'buzz-btn';
+      document.getElementById('hint').innerHTML = '点击按钮，对方就有 <strong>反应</strong>';
+    }
+
+    else if (msg.type === 'buzz') {
+      receiveBuzz();
+    }
+
+    else if (msg.type === 'error') {
+      alert(msg.message);
+    }
+  };
+
+  ws.onclose = () => {
+    paired = false;
+    setStatus('连接断开，重连中...');
+    document.getElementById('buzzBtn').className = 'buzz-btn disabled';
+    setTimeout(connect, 2000);
+  };
+}
+
+function setStatus(t) {
+  document.getElementById('statusText').textContent = t;
+}
+
+// ========== 房间管理 ==========
+function createRoom() {
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'create' }));
+  }
+}
+
+function joinRoom() {
+  const code = document.getElementById('roomInput').value.trim().toUpperCase();
+  if (!code) return;
+  ws.send(JSON.stringify({ type: 'join', roomId: code }));
+}
+
+function copyRoom() {
+  const el = document.createElement('textarea');
+  el.value = roomId;
+  document.body.appendChild(el);
+  el.select();
+  document.execCommand('copy');
+  document.body.removeChild(el);
+  const btn = event.target;
+  btn.textContent = '已复制 ✓';
+  setTimeout(() => btn.textContent = '复制房间号', 1500);
+}
+
+function leaveRoom() {
+  roomId = null; paired = false;
+  document.getElementById('homePage').style.display = 'block';
+  document.getElementById('roomPage').style.display = 'none';
+  document.getElementById('buzzBtn').className = 'buzz-btn disabled';
+  if (ws) { ws.close(); ws = null; }
+  setTimeout(connect, 500);
+}
+
+document.getElementById('roomInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') joinRoom();
+});
+
+// ========== 音效 ==========
+let audioCtx = null;
+function playSound() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const c = audioCtx;
+    [200, 300, 400].forEach((freq, i) => {
+      const osc = c.createOscillator();
+      const gain = c.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.3, c.currentTime + i * 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + i * 0.08 + 0.15);
+      osc.connect(gain).connect(c.destination);
+      osc.start(c.currentTime + i * 0.08);
+      osc.stop(c.currentTime + i * 0.08 + 0.15);
+    });
+  } catch(e) {}
+}
+
+// ========== 发送 & 接收 ==========
+function sendBuzz() {
+  if (!paired || !ws) return;
+  ws.send(JSON.stringify({ type: 'buzz', roomId }));
+  document.getElementById('buzzBtn').innerHTML = '✓<br>已发送';
+  setTimeout(() => document.getElementById('buzzBtn').innerHTML = '👆<br>戳我', 300);
+}
+
+function receiveBuzz() {
+  // 振动
+  if (navigator.vibrate) navigator.vibrate([80, 40, 80, 40, 160]);
+  // 音效
+  playSound();
+  // 按钮动画
+  const btn = document.getElementById('buzzBtn');
+  btn.className = 'buzz-btn receiving';
+  btn.innerHTML = '💥<br>嗡嗡嗡';
+  // 全屏闪光
+  document.getElementById('flashOverlay').className = 'flash-overlay go';
+  setTimeout(() => document.getElementById('flashOverlay').className = 'flash-overlay', 700);
+  // 屏幕抖动
+  document.getElementById('container').classList.add('shake');
+  setTimeout(() => document.getElementById('container').classList.remove('shake'), 600);
+  // 横幅
+  const banner = document.getElementById('banner');
+  banner.className = 'banner show';
+  setTimeout(() => banner.className = 'banner', 1200);
+  // 恢复
+  setTimeout(() => {
+    btn.className = 'buzz-btn' + (paired ? '' : ' disabled');
+    btn.innerHTML = '👆<br>戳我';
+  }, 900);
+}
+
+connect();
+</script>
+</body>
+</html>
