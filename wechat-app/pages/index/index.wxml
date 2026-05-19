@@ -1,0 +1,45 @@
+<view class="container">
+
+  <!-- 状态栏 -->
+  <view class="status-row">
+    <view class="dot {{connected ? 'online' : ''}}"></view>
+    <text>{{statusText}}</text>
+  </view>
+
+  <view class="title">TapBuzz</view>
+  <view class="subtitle">点一下，对方就有反应</view>
+
+  <!-- 没有房间时：创建/加入 -->
+  <block wx:if="{{!roomId}}">
+    <view class="card">
+      <button class="btn-primary" bindtap="createRoom">创建房间</button>
+    </view>
+    <view class="separator"><text>或者</text></view>
+    <view class="card">
+      <input class="input" placeholder="输入对方房间号" maxlength="6"
+             value="{{roomInput}}" bindinput="onRoomInput" />
+      <button class="btn-primary" bindtap="joinRoom">加入</button>
+    </view>
+  </block>
+
+  <!-- 有房间后：显示房间号和戳一戳按钮 -->
+  <block wx:else>
+    <view class="room-box">
+      <text class="room-label">房间号</text>
+      <text class="room-code">{{roomId}}</text>
+      <button class="btn-share" bindtap="onShare">复制房间号发给好友</button>
+    </view>
+
+    <view class="buzz-wrap">
+      <button class="buzz-btn {{paired ? '' : 'disabled'}} {{_receiving ? 'receiving' : ''}}"
+              bindtap="sendBuzz" disabled="{{!paired}}">
+        <text class="buzz-icon">{{btnIcon}}</text>
+        <text class="buzz-label">{{btnLabel}}</text>
+      </button>
+    </view>
+    <text class="hint">{{hint}}</text>
+
+    <view class="btn-back" bindtap="leaveRoom">← 退出</view>
+  </block>
+
+</view>
