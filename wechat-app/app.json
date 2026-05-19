@@ -1,0 +1,10 @@
+{
+  "pages": ["pages/index/index"],
+  "window": {
+    "navigationBarTitleText": "TapBuzz",
+    "navigationBarBackgroundColor": "#0f0f1a",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#0f0f1a"
+  },
+  "sitemapLocation": "sitemap.json"
+}
