@@ -6,8 +6,8 @@
 <title>TapBuzz - 互振</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #0f0f1a; color: #fff; min-height: 100dvh; display: flex; align-items: center; justify-content: center; touch-action: manipulation; }
-  .container { width: 100%; max-width: 420px; padding: 32px 24px; text-align: center; }
+  body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #0f0f1a; color: #fff; min-height: 100dvh; display: flex; align-items: center; justify-content: center; touch-action: manipulation; overflow: hidden; }
+  .container { width: 100%; max-width: 420px; padding: 32px 24px; text-align: center; position: relative; z-index: 1; }
   h1 { font-size: 36px; font-weight: 700; margin-bottom: 4px; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
   .subtitle { color: #666; font-size: 14px; margin-bottom: 28px; }
   .status-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 24px; font-size: 14px; color: #888; }
@@ -30,30 +30,85 @@
     margin: 0 auto;
     display: flex; align-items: center; justify-content: center;
     flex-direction: column; gap: 4px;
+    position: relative;
   }
   .buzz-btn:active { transform: scale(0.90); }
   .buzz-btn.disabled { opacity: 0.35; pointer-events: none; }
-  @keyframes shake {
-    0%, 100% { transform: scale(1); }
-    20% { transform: scale(1.05) rotate(-2deg); }
-    40% { transform: scale(1.05) rotate(2deg); }
-    60% { transform: scale(1.02) rotate(-1deg); }
-    80% { transform: scale(1.02) rotate(1deg); }
+
+  /* 按钮收到时的剧烈动画 */
+  @keyframes buzzPulse {
+    0%   { transform: scale(1); box-shadow: 0 0 40px #f5576c55; }
+    15%  { transform: scale(1.2); box-shadow: 0 0 80px #f5576c, 0 0 120px #f093fb88; }
+    30%  { transform: scale(0.95); box-shadow: 0 0 60px #f5576c; }
+    45%  { transform: scale(1.1); box-shadow: 0 0 100px #f093fb; }
+    60%  { transform: scale(1); box-shadow: 0 0 40px #f5576c55; }
+    100% { transform: scale(1); box-shadow: 0 0 40px #f5576c55; }
   }
-  .buzz-btn.shaking { animation: shake .4s ease 2; }
+  .buzz-btn.receiving {
+    animation: buzzPulse .8s ease-out;
+  }
+
+  /* 全屏闪光遮罩 */
+  .flash-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none; z-index: 999;
+    opacity: 0; transition: none;
+  }
+  .flash-overlay.go {
+    opacity: 1;
+    background: radial-gradient(circle at center, #fff8 0%, #f5576c44 50%, transparent 80%);
+    animation: flashFade .6s ease-out forwards;
+  }
+  @keyframes flashFade {
+    0%   { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  /* 屏幕抖动 */
+  @keyframes screenShake {
+    0%, 100% { transform: translate(0, 0); }
+    10% { transform: translate(-4px, 2px); }
+    20% { transform: translate(4px, -2px); }
+    30% { transform: translate(-3px, -1px); }
+    40% { transform: translate(3px, 1px); }
+    50% { transform: translate(-2px, 3px); }
+    60% { transform: translate(2px, -3px); }
+    70% { transform: translate(-1px, -2px); }
+    80% { transform: translate(1px, 2px); }
+    90% { transform: translate(-2px, -1px); }
+  }
+  .container.shake {
+    animation: screenShake .5s ease-out;
+  }
+
+  /* 收到通知横幅 */
+  .banner {
+    position: fixed; top: -80px; left: 0; right: 0;
+    background: linear-gradient(135deg, #f093fb, #f5576c);
+    color: #fff; text-align: center; padding: 16px;
+    font-size: 18px; font-weight: 600; z-index: 1000;
+    transition: top .3s cubic-bezier(.34,1.56,.64,1);
+    box-shadow: 0 4px 20px #f5576c88;
+  }
+  .banner.show { top: 0; }
+
   .hint { color: #666; font-size: 13px; margin-top: 16px; }
   .hint strong { color: #667eea; }
   .footer { margin-top: 32px; font-size: 11px; color: #333; }
 </style>
 </head>
 <body>
-<div class="container">
+
+<div class="flash-overlay" id="flashOverlay"></div>
+<div class="banner" id="banner">💥 对方戳了你一下！</div>
+
+<div class="container" id="container">
   <div class="status-row">
     <span class="dot" id="dot"></span>
     <span id="statusText">初始化中...</span>
   </div>
   <h1>TapBuzz</h1>
-  <div class="subtitle">点一下，对方手机就震动</div>
+  <div class="subtitle">点一下，对方手机就有反应</div>
   <div class="share-area" id="shareBox" style="display:none">
     <div class="label">把此链接发给对方 👇</div>
     <div class="link-row">
@@ -61,7 +116,7 @@
       <button id="copyBtn" onclick="copyLink()">复制</button>
     </div>
   </div>
-  <button class="buzz-btn disabled" id="buzzBtn">👆<br>点我</button>
+  <button class="buzz-btn disabled" id="buzzBtn">👆<br>戳我</button>
   <div class="hint" id="hint">初始化中...</div>
   <div class="footer">需要联网</div>
 </div>
@@ -75,19 +130,15 @@ let paired = false;
 
 function init() {
   const targetId = location.hash.replace(/^#/, '');
-
-  // 唯一的简短 ID
   const myId = 'buzz_' + Math.random().toString(36).slice(2, 6);
 
   peer = new Peer(myId);
 
   peer.on('open', (id) => {
     if (targetId) {
-      // 我是 B：通过 URL 中的 ID 连接对方
       setStatus('alone', '正在连接对方...');
       connectToPeer(targetId);
     } else {
-      // 我是 A：显示分享链接，等待对方连接
       const url = location.href.replace(/#.*$/, '') + '#' + id;
       document.getElementById('shareLink').value = url;
       document.getElementById('shareBox').style.display = 'block';
@@ -122,7 +173,7 @@ function setupConnection() {
   setStatus('paired', '已配对！');
   document.getElementById('shareBox').style.display = 'none';
   document.getElementById('buzzBtn').className = 'buzz-btn';
-  document.getElementById('hint').innerHTML = '点击按钮，对方手机就会 <strong>震动</strong>';
+  document.getElementById('hint').innerHTML = '点击按钮，对方手机就有 <strong>反应</strong>';
 
   conn.on('data', (data) => {
     if (data === 'buzz') receiveBuzz();
@@ -150,23 +201,71 @@ function copyLink() {
   setTimeout(() => btn.textContent = '复制', 1500);
 }
 
-// ========== 振动 ==========
+// ========== 音效（Web Audio，不需要文件） ==========
+let audioCtx = null;
+
+function playBuzzSound() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // 短促的"嗡嗡"音效
+    const c = audioCtx;
+    [200, 300, 400].forEach((freq, i) => {
+      const osc = c.createOscillator();
+      const gain = c.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.3, c.currentTime + i * 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + i * 0.08 + 0.15);
+      osc.connect(gain).connect(c.destination);
+      osc.start(c.currentTime + i * 0.08);
+      osc.stop(c.currentTime + i * 0.08 + 0.15);
+    });
+  } catch(e) { /* 静默失败 */ }
+}
+
+// ========== 发送 & 接收 ==========
 function sendBuzz() {
   if (!paired || !conn) return;
   conn.send('buzz');
-  document.getElementById('buzzBtn').innerHTML = '✓<br>已发送';
-  setTimeout(() => document.getElementById('buzzBtn').innerHTML = '👆<br>点我', 300);
+  const btn = document.getElementById('buzzBtn');
+  btn.innerHTML = '✓<br>已发送';
+  setTimeout(() => btn.innerHTML = '👆<br>戳我', 300);
 }
 
 function receiveBuzz() {
-  if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 200]);
+  // 1. 振动（仅 Android 支持）
+  if (navigator.vibrate) {
+    navigator.vibrate([80, 40, 80, 40, 160]);
+  }
+
+  // 2. 音效（Android + iOS 都支持）
+  playBuzzSound();
+
+  // 3. 按钮剧烈动画 + 全屏闪光
   const btn = document.getElementById('buzzBtn');
-  btn.className = 'buzz-btn shaking';
-  btn.innerHTML = '💥<br>嗡~';
+  btn.className = 'buzz-btn receiving';
+  btn.innerHTML = '💥<br>嗡嗡嗡';
+
+  // 4. 全屏闪白
+  const flash = document.getElementById('flashOverlay');
+  flash.className = 'flash-overlay go';
+  setTimeout(() => flash.className = 'flash-overlay', 700);
+
+  // 5. 屏幕抖动
+  const container = document.getElementById('container');
+  container.classList.add('shake');
+  setTimeout(() => container.classList.remove('shake'), 600);
+
+  // 6. 顶部横幅滑入
+  const banner = document.getElementById('banner');
+  banner.className = 'banner show';
+  setTimeout(() => banner.className = 'banner', 1200);
+
+  // 恢复按钮
   setTimeout(() => {
     btn.className = 'buzz-btn' + (paired ? '' : ' disabled');
-    btn.innerHTML = '👆<br>点我';
-  }, 800);
+    btn.innerHTML = '👆<br>戳我';
+  }, 900);
 }
 
 init();
