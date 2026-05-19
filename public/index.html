@@ -5,206 +5,197 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>TapBuzz - 互振</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system,'Segoe UI',sans-serif; background: #0f0f1a; color: #fff; min-height: 100dvh; display: flex; align-items: center; justify-content: center; touch-action: manipulation; overflow: hidden; }
-  .container { width: 100%; max-width: 420px; padding: 32px 24px; text-align: center; position: relative; z-index: 1; }
-  h1 { font-size: 36px; font-weight: 700; margin-bottom: 4px; background: linear-gradient(135deg,#667eea,#764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-  .subtitle { color: #666; font-size: 14px; margin-bottom: 24px; }
-  .status-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 20px; font-size: 14px; color: #888; }
-  .dot { width: 10px; height: 10px; border-radius: 50%; background: #444; }
-  .dot.online { background: #4ade80; box-shadow: 0 0 10px #4ade8066; }
-  .card { background: #1a1a2e; border-radius: 16px; padding: 24px; margin-bottom: 12px; }
-  .btn { width: 100%; padding: 14px; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 10px; }
-  .btn:active { opacity: .8; }
-  .btn-primary { background: linear-gradient(135deg,#667eea,#764ba2); color: #fff; }
-  .separator { display: flex; align-items: center; gap: 12px; color: #555; font-size: 12px; margin: 16px 0; }
-  .separator::before,.separator::after { content: ''; flex: 1; height: 1px; background: #2a2a4a; }
-  .input { width: 100%; padding: 14px; border: 2px solid #2a2a4a; border-radius: 12px; font-size: 24px; text-align: center; background: #0f0f1a; color: #fff; outline: none; text-transform: uppercase; letter-spacing: 4px; }
-  .input:focus { border-color: #667eea; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system,'Segoe UI',sans-serif; background: #0f0f1a; color: #fff; min-height: 100dvh; display: flex; align-items: center; justify-content: center; touch-action: manipulation; }
+.container { width: 100%; max-width: 420px; padding: 32px 24px; text-align: center; position: relative; }
 
-  .room-box { background: #1a1a2e; border-radius: 16px; padding: 20px; margin-bottom: 24px; }
-  .room-label { font-size: 12px; color: #888; }
-  .room-code { font-size: 40px; font-weight: 700; letter-spacing: 8px; color: #667eea; margin: 8px 0; }
-  .btn-share { padding: 10px 24px; border: none; border-radius: 10px; background: #667eea; color: #fff; font-size: 14px; cursor: pointer; }
+.status-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 24px; font-size: 14px; color: #888; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: #444; }
+.dot.online { background: #4ade80; box-shadow: 0 0 10px #4ade8066; }
 
-  .buzz-btn {
-    width: 220px; height: 220px; border-radius: 50%; border: none;
-    font-size: 28px; font-weight: 700; color: #fff;
-    background: linear-gradient(135deg,#f093fb,#f5576c);
-    box-shadow: 0 8px 40px #f5576c55;
-    cursor: pointer; transition: transform .08s, opacity .3s;
-    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
-    margin: 0 auto; display: flex; align-items: center; justify-content: center;
-    flex-direction: column; gap: 4px;
-  }
-  .buzz-btn:active { transform: scale(.9); }
-  .buzz-btn.disabled { opacity: .35; pointer-events: none; }
+h1 { font-size: 36px; font-weight: 700; margin-bottom: 4px; background: linear-gradient(135deg,#667eea,#764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.subtitle { color: #666; font-size: 14px; margin-bottom: 32px; }
 
-  @keyframes buzzPulse {
-    0%   { transform: scale(1); box-shadow: 0 0 40px #f5576c55; }
-    15%  { transform: scale(1.2); box-shadow: 0 0 80px #f5576c, 0 0 120px #f093fb88; }
-    30%  { transform: scale(.95); box-shadow: 0 0 60px #f5576c; }
-    45%  { transform: scale(1.1); box-shadow: 0 0 100px #f093fb; }
-    60%  { transform: scale(1); box-shadow: 0 0 40px #f5576c55; }
-  }
-  .buzz-btn.receiving { animation: buzzPulse .8s ease-out; }
-  @keyframes screenShake {
-    0%,100% { transform: translate(0,0); }
-    10% { transform: translate(-4px,2px); }
-    20% { transform: translate(4px,-2px); }
-    30% { transform: translate(-3px,-1px); }
-    40% { transform: translate(3px,1px); }
-    50% { transform: translate(-2px,3px); }
-    60% { transform: translate(2px,-3px); }
-    70% { transform: translate(-1px,-2px); }
-    80% { transform: translate(1px,2px); }
-    90% { transform: translate(-2px,-1px); }
-  }
-  .container.shake { animation: screenShake .5s ease-out; }
-  .flash-overlay { position: fixed; top:0; left:0; right:0; bottom:0; pointer-events: none; z-index: 999; }
-  .flash-overlay.go { background: radial-gradient(circle at center, #fff8 0%, #f5576c44 50%, transparent 80%); animation: flashFade .6s ease-out forwards; }
-  @keyframes flashFade { 0% { opacity: 1; } 100% { opacity: 0; } }
-  .banner { position: fixed; top: -80px; left:0; right:0; background: linear-gradient(135deg,#f093fb,#f5576c); color: #fff; text-align: center; padding: 16px; font-size: 18px; font-weight: 600; z-index: 1000; transition: top .3s cubic-bezier(.34,1.56,.64,1); box-shadow: 0 4px 20px #f5576c88; }
-  .banner.show { top: 0; }
-  .hint { color: #666; font-size: 13px; margin-top: 16px; }
-  .footer { margin-top: 32px; font-size: 11px; color: #333; }
-  #roomPage { display: none; }
+/* 分享卡片 */
+.share-box { background: #1a1a2e; border-radius: 16px; padding: 28px; margin-bottom: 40px; }
+.share-icon { font-size: 56px; display: block; margin-bottom: 12px; }
+.share-title { font-size: 20px; font-weight: 600; display: block; margin-bottom: 8px; }
+.share-hint { color: #888; font-size: 13px; display: block; margin-bottom: 20px; }
+.btn-share { padding: 12px 32px; border: none; border-radius: 12px; background: linear-gradient(135deg,#667eea,#764ba2); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }
+.link-box { margin-top: 16px; display: flex; gap: 8px; }
+.link-box input { flex: 1; padding: 10px; border: 2px solid #2a2a4a; border-radius: 8px; background: #0f0f1a; color: #888; font-size: 12px; outline: none; }
+.link-box button { padding: 10px 16px; border: none; border-radius: 8px; background: #667eea; color: #fff; cursor: pointer; font-size: 12px; }
+
+/* 大按钮 */
+.buzz-btn { width: 220px; height: 220px; border-radius: 50%; border: none; font-size: 28px; font-weight: 700; color: #fff; background: linear-gradient(135deg,#f093fb,#f5576c); box-shadow: 0 8px 40px #f5576c55; cursor: pointer; transition: transform .08s, opacity .3s; touch-action: manipulation; -webkit-tap-highlight-color: transparent; margin: 0 auto; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 4px; }
+.buzz-btn:active { transform: scale(.9); }
+.buzz-btn.disabled { opacity: .35; pointer-events: none; }
+
+@keyframes buzzPulse { 0% { transform: scale(1); box-shadow: 0 0 40px #f5576c55; } 15% { transform: scale(1.2); box-shadow: 0 0 80px #f5576c, 0 0 120px #f093fb88; } 30% { transform: scale(.95); box-shadow: 0 0 60px #f5576c; } 45% { transform: scale(1.1); box-shadow: 0 0 100px #f093fb; } 60% { transform: scale(1); box-shadow: 0 0 40px #f5576c55; } }
+.buzz-btn.receiving { animation: buzzPulse .8s ease-out; }
+
+@keyframes screenShake { 0%,100% { transform: translate(0,0); } 10% { transform: translate(-4px,2px); } 20% { transform: translate(4px,-2px); } 30% { transform: translate(-3px,-1px); } 40% { transform: translate(3px,1px); } 50% { transform: translate(-2px,3px); } 60% { transform: translate(2px,-3px); } 70% { transform: translate(-1px,-2px); } 80% { transform: translate(1px,2px); } 90% { transform: translate(-2px,-1px); } }
+.container.shake { animation: screenShake .5s ease-out; }
+.flash-overlay { position: fixed; top:0; left:0; right:0; bottom:0; pointer-events: none; z-index: 999; }
+.flash-overlay.go { background: radial-gradient(circle at center, #fff8 0%, #f5576c44 50%, transparent 80%); animation: flashFade .6s ease-out forwards; }
+@keyframes flashFade { 0% { opacity: 1; } 100% { opacity: 0; } }
+.banner { position: fixed; top: -80px; left:0; right:0; background: linear-gradient(135deg,#f093fb,#f5576c); color: #fff; text-align: center; padding: 16px; font-size: 18px; font-weight: 600; z-index: 1000; transition: top .3s cubic-bezier(.34,1.56,.64,1); box-shadow: 0 4px 20px #f5576c88; }
+.banner.show { top: 0; }
+
+.hint { color: #666; font-size: 13px; margin-top: 16px; }
+
+/* 聊天入口 */
+.chat-bar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1a1a2e; border: 2px solid #2a2a4a; padding: 10px 24px; border-radius: 24px; font-size: 15px; cursor: pointer; display: flex; align-items: center; gap: 6px; z-index: 50; }
+.chat-badge { background: #f5576c; color: #fff; font-size: 11px; min-width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
+
+/* 聊天面板 */
+.chat-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #0f0f1a; z-index: 100; flex-direction: column; }
+.chat-overlay.show { display: flex; }
+.chat-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #2a2a4a; }
+.chat-header-title { font-size: 17px; font-weight: 600; }
+.chat-close { font-size: 20px; color: #888; cursor: pointer; padding: 4px; }
+.chat-body { flex: 1; overflow-y: auto; padding: 16px; }
+.chat-msg { margin-bottom: 16px; max-width: 80%; }
+.chat-msg.me { margin-left: auto; text-align: right; }
+.chat-msg.other { margin-right: auto; text-align: left; }
+.chat-bubble { display: inline-block; padding: 10px 16px; border-radius: 12px; font-size: 15px; line-height: 1.5; word-break: break-word; text-align: left; }
+.chat-msg.me .chat-bubble { background: linear-gradient(135deg,#667eea,#764ba2); border-bottom-right-radius: 4px; }
+.chat-msg.other .chat-bubble { background: #1a1a2e; border-bottom-left-radius: 4px; }
+.chat-time { font-size: 11px; color: #555; margin-top: 4px; display: block; }
+.chat-empty { text-align: center; color: #555; font-size: 14px; margin-top: 60px; }
+.chat-foot { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid #2a2a4a; }
+.chat-foot input { flex: 1; background: #1a1a2e; border: 2px solid #2a2a4a; border-radius: 10px; padding: 10px 14px; font-size: 15px; color: #fff; outline: none; }
+.chat-foot input:focus { border-color: #667eea; }
+.chat-foot button { padding: 10px 20px; border: none; border-radius: 10px; font-size: 15px; background: linear-gradient(135deg,#667eea,#764ba2); color: #fff; cursor: pointer; }
 </style>
 </head>
 <body>
 <div class="flash-overlay" id="flashOverlay"></div>
 <div class="banner" id="banner">💥 对方戳了你一下！</div>
+
 <div class="container" id="container">
   <div class="status-row">
     <span class="dot" id="dot"></span>
     <span id="statusText">连接中...</span>
   </div>
-  <div id="homePage">
-    <h1>TapBuzz</h1>
-    <div class="subtitle">点一下，对方就有反应</div>
-    <div class="card"><button class="btn btn-primary" onclick="createRoom()">创建房间</button></div>
-    <div class="separator">或者</div>
-    <div class="card">
-      <input class="input" id="roomInput" placeholder="输入房间号" maxlength="6" autocomplete="off">
-      <button class="btn btn-primary" onclick="joinRoom()">加入</button>
-    </div>
-    <div class="footer">无需服务器，MQTT 中转</div>
-  </div>
-  <div id="roomPage">
-    <h1>TapBuzz</h1>
-    <div class="room-box">
-      <div class="room-label">房间号</div>
-      <div class="room-code" id="roomCode"></div>
-      <button class="btn-share" onclick="copyRoom()">复制房间号</button>
+  <h1>TapBuzz</h1>
+  <div class="subtitle">分享链接给好友，互戳互振</div>
+
+  <!-- 等待分享 -->
+  <div id="sharePage">
+    <div class="share-box">
+      <span class="share-icon">📲</span>
+      <span class="share-title">分享给好友</span>
+      <span class="share-hint">对方打开即自动配对</span>
+      <button class="btn-share" onclick="copyLink()">复制链接发给好友</button>
+      <div class="link-box">
+        <input id="linkInput" readonly>
+        <button onclick="copyLink()">复制</button>
+      </div>
     </div>
     <button class="buzz-btn disabled" id="buzzBtn">👆<br>戳我</button>
-    <div class="hint" id="hint">等待对方加入...</div>
-    <div class="footer" style="cursor:pointer;color:#555;margin-top:20px" onclick="leaveRoom()">← 退出</div>
+    <div class="hint" id="hint">等待好友加入...</div>
+  </div>
+
+  <!-- 聊天入口 -->
+  <div class="chat-bar" id="chatBar" style="display:none" onclick="toggleChat()">
+    <span>💬 聊天</span>
+    <span class="chat-badge" id="chatBadge" style="display:none">1</span>
   </div>
 </div>
 
-<script src="https://unpkg.com/mqtt@5.10.4/dist/mqtt.min.js"></script>
+<!-- 聊天面板 -->
+<div class="chat-overlay" id="chatOverlay">
+  <div class="chat-header">
+    <span class="chat-header-title">💬 聊天</span>
+    <span class="chat-close" onclick="toggleChat()">✕</span>
+  </div>
+  <div class="chat-body" id="chatBody">
+    <div id="chatMessages"></div>
+    <div class="chat-empty" id="chatEmpty">还没有消息，发一条吧</div>
+  </div>
+  <div class="chat-foot">
+    <input id="chatInput" placeholder="输入消息..." maxlength="200" onkeydown="if(event.key==='Enter')sendChat()">
+    <button onclick="sendChat()">发送</button>
+  </div>
+</div>
+
+<!-- MQTT.js via CDN (jsdelivr has China nodes) -->
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.4/dist/mqtt.min.js"></script>
 <script>
-// ========== MQTT 连接（无需服务器） ==========
-const brokerUrl = 'wss://broker.emqx.io:8084/mqtt'
+// ========== MQTT ==========
+const brokerUrl = 'wss://broker-cn.emqx.io:8084/mqtt'   // 国内节点，更快
 let client = null
 let roomId = null
 let paired = false
 const TOPIC_PREFIX = 'tapbuzz/'
+
+// 从 URL 参数读取房间号
+const params = new URLSearchParams(location.search)
+const joinRoomId = params.get('room')
 
 function connect() {
   client = mqtt.connect(brokerUrl, {
     clientId: 'tapbuzz_' + Math.random().toString(36).slice(2, 10),
     clean: true
   })
-
   client.on('connect', () => {
     document.getElementById('dot').className = 'dot online'
     setStatus('已连接')
+    if (joinRoomId) {
+      roomId = joinRoomId.toUpperCase()
+      subscribeRoom(roomId)
+      publish(roomId, 'ping')
+    } else {
+      roomId = Math.random().toString(36).slice(2, 8).toUpperCase()
+      subscribeRoom(roomId)
+      document.getElementById('linkInput').value = location.origin + location.pathname + '?room=' + roomId
+    }
   })
-
   client.on('message', (topic, payload) => {
     const msg = payload.toString()
     if (msg === 'buzz') receiveBuzz()
-    else if (msg === 'ping') { /* keep-alive */ }
+    else if (msg === 'ping') onPaired()
+    else if (msg.startsWith('msg:')) receiveChat(msg.slice(4))
   })
-
   client.on('error', () => setStatus('连接失败，请刷新重试'))
 }
 
 function subscribeRoom(rid) {
-  if (client) {
-    client.subscribe(TOPIC_PREFIX + rid)
-    client.on('message', (topic) => {
-      if (topic === TOPIC_PREFIX + rid && !paired) {
-        paired = true
-        document.getElementById('buzzBtn').className = 'buzz-btn'
-        document.getElementById('hint').innerHTML = '点击按钮，对方就有 <strong>反应</strong>'
-      }
-    })
-  }
+  if (!client) return
+  client.subscribe(TOPIC_PREFIX + rid)
+  client.on('message', (topic) => {
+    if (topic === TOPIC_PREFIX + rid && !paired) onPaired()
+  })
 }
 
-function publish(topic, msg) {
-  if (client) client.publish(TOPIC_PREFIX + topic, msg)
-}
-
+function publish(topic, msg) { if (client) client.publish(TOPIC_PREFIX + topic, msg) }
 function setStatus(t) { document.getElementById('statusText').textContent = t }
 
-// ========== 房间管理 ==========
-function createRoom() {
-  roomId = Math.random().toString(36).slice(2, 8).toUpperCase()
-  subscribeRoom(roomId)
-  document.getElementById('roomCode').textContent = roomId
-  document.getElementById('homePage').style.display = 'none'
-  document.getElementById('roomPage').style.display = 'block'
-  setStatus('等待对方加入')
-  document.getElementById('hint').textContent = '将房间号发给对方'
+function onPaired() {
+  if (paired) return
+  paired = true
+  document.getElementById('buzzBtn').className = 'buzz-btn'
+  document.getElementById('hint').innerHTML = '连接成功！戳一下对方'
+  document.getElementById('chatBar').style.display = 'flex'
 }
 
-function joinRoom() {
-  const code = document.getElementById('roomInput').value.trim().toUpperCase()
-  if (!code) return
-  roomId = code
-  subscribeRoom(code)
-  // 发一条 ping 让对方知道有人加入了
-  publish(code, 'ping')
-  document.getElementById('roomCode').textContent = code
-  document.getElementById('homePage').style.display = 'none'
-  document.getElementById('roomPage').style.display = 'block'
-  setStatus('已加入')
-}
-
-function copyRoom() {
-  const el = document.createElement('textarea')
-  el.value = roomId
-  document.body.appendChild(el)
-  el.select()
-  document.execCommand('copy')
-  document.body.removeChild(el)
+function copyLink() {
+  const input = document.getElementById('linkInput')
+  input.select()
+  navigator.clipboard.writeText(input.value).catch(() => {})
   const btn = event.target
   btn.textContent = '已复制 ✓'
-  setTimeout(() => btn.textContent = '复制房间号', 1500)
+  setTimeout(() => btn.textContent = '复制链接发给好友', 1500)
 }
 
-function leaveRoom() {
-  roomId = null; paired = false
-  document.getElementById('homePage').style.display = 'block'
-  document.getElementById('roomPage').style.display = 'none'
-  document.getElementById('buzzBtn').className = 'buzz-btn disabled'
-}
-
-document.getElementById('roomInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') joinRoom()
-})
-
-// ========== 音效 ==========
+// ========== 振动 & 音效 ==========
 let audioCtx = null
 function playSound() {
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
-    const c = audioCtx
-    ;[200, 300, 400].forEach((freq, i) => {
+    const c = audioCtx;
+    [200, 300, 400].forEach((freq, i) => {
       const osc = c.createOscillator()
       const gain = c.createGain()
       osc.type = 'sine'
@@ -218,9 +209,8 @@ function playSound() {
   } catch(e) {}
 }
 
-// ========== 发送 & 接收 ==========
 function sendBuzz() {
-  if (!roomId) return
+  if (!roomId || !paired) return
   publish(roomId, 'buzz')
   document.getElementById('buzzBtn').innerHTML = '✓<br>已发送'
   setTimeout(() => document.getElementById('buzzBtn').innerHTML = '👆<br>戳我', 300)
@@ -229,11 +219,10 @@ function sendBuzz() {
 function receiveBuzz() {
   paired = true
   document.getElementById('buzzBtn').className = 'buzz-btn'
-  document.getElementById('hint').innerHTML = '点击按钮，对方就有 <strong>反应</strong>'
-
+  document.getElementById('hint').innerHTML = '连接成功！戳一下对方'
+  document.getElementById('chatBar').style.display = 'flex'
   if (navigator.vibrate) navigator.vibrate([80, 40, 80, 40, 160])
   playSound()
-
   const btn = document.getElementById('buzzBtn')
   btn.className = 'buzz-btn receiving'
   btn.innerHTML = '💥<br>嗡嗡嗡'
@@ -244,11 +233,49 @@ function receiveBuzz() {
   const banner = document.getElementById('banner')
   banner.className = 'banner show'
   setTimeout(() => banner.className = 'banner', 1200)
-  setTimeout(() => {
-    btn.className = 'buzz-btn'
-    btn.innerHTML = '👆<br>戳我'
-  }, 900)
+  setTimeout(() => { btn.className = 'buzz-btn'; btn.innerHTML = '👆<br>戳我' }, 900)
 }
+
+// ========== 聊天 ==========
+function toggleChat() {
+  const overlay = document.getElementById('chatOverlay')
+  const show = overlay.style.display !== 'flex'
+  overlay.style.display = show ? 'flex' : 'none'
+  if (show) {
+    document.getElementById('chatBadge').style.display = 'none'
+    setTimeout(() => { document.getElementById('chatBody').scrollTop = 99999 }, 100)
+  }
+}
+
+function sendChat() {
+  const input = document.getElementById('chatInput')
+  const text = input.value.trim()
+  if (!text || !paired) return
+  publish(roomId, 'msg:' + text)
+  addChatMsg(text, 'me')
+  input.value = ''
+}
+
+function receiveChat(text) {
+  addChatMsg(text, 'other')
+  if (document.getElementById('chatOverlay').style.display !== 'flex') {
+    document.getElementById('chatBadge').style.display = 'flex'
+  }
+}
+
+function addChatMsg(text, from) {
+  const container = document.getElementById('chatMessages')
+  document.getElementById('chatEmpty').style.display = 'none'
+  const now = new Date()
+  const time = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0')
+  const div = document.createElement('div')
+  div.className = 'chat-msg ' + from
+  div.innerHTML = '<div class="chat-bubble">' + escapeHtml(text) + '</div><span class="chat-time">' + time + '</span>'
+  container.appendChild(div)
+  setTimeout(() => { document.getElementById('chatBody').scrollTop = 99999 }, 50)
+}
+
+function escapeHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
 
 connect()
 </script>

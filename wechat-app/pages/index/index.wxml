@@ -7,39 +7,77 @@
   </view>
 
   <view class="title">TapBuzz</view>
-  <view class="subtitle">点一下，对方就有反应</view>
+  <view class="subtitle">分享给好友，互戳互振</view>
 
-  <!-- 没有房间时：创建/加入 -->
-  <block wx:if="{{!roomId}}">
-    <view class="card">
-      <button class="btn-primary" bindtap="createRoom">创建房间</button>
-    </view>
-    <view class="separator"><text>或者</text></view>
-    <view class="card">
-      <input class="input" placeholder="输入对方房间号" maxlength="6"
-             value="{{roomInput}}" bindinput="onRoomInput" />
-      <button class="btn-primary" bindtap="joinRoom">加入</button>
+  <!-- 加载中 -->
+  <block wx:if="{{pageMode === 'loading' || pageMode === 'joining'}}">
+    <view class="loading-box">
+      <text class="loading-text">{{pageMode === 'joining' ? '正在加入...' : '连接中...'}}</text>
     </view>
   </block>
 
-  <!-- 有房间后：显示房间号和戳一戳按钮 -->
-  <block wx:else>
-    <view class="room-box">
-      <text class="room-label">房间号</text>
-      <text class="room-code">{{roomId}}</text>
-      <button class="btn-share" bindtap="onShare">复制房间号发给好友</button>
+  <!-- 已创建房间，等待分享 -->
+  <block wx:elif="{{pageMode === 'created'}}">
+    <view class="share-box">
+      <text class="share-icon">📲</text>
+      <text class="share-title">分享给好友</text>
+      <text class="share-hint">对方打开即自动配对，无需输入房间号</text>
+      <button class="btn-share" bindtap="onShare">
+        <text>分享到微信</text>
+      </button>
     </view>
 
     <view class="buzz-wrap">
-      <button class="buzz-btn {{paired ? '' : 'disabled'}} {{_receiving ? 'receiving' : ''}}"
-              bindtap="sendBuzz" disabled="{{!paired}}">
+      <button class="buzz-btn disabled buzz-btn-mini" disabled="{{true}}">
+        <text class="buzz-icon">{{btnIcon}}</text>
+        <text class="buzz-label">{{btnLabel}}</text>
+      </button>
+    </view>
+    <text class="hint">{{hint}}</text>
+  </block>
+
+  <!-- 已配对 -->
+  <block wx:elif="{{pageMode === 'paired'}}">
+    <view class="buzz-wrap">
+      <button class="buzz-btn {{_receiving ? 'receiving' : ''}}"
+              bindtap="sendBuzz">
         <text class="buzz-icon">{{btnIcon}}</text>
         <text class="buzz-label">{{btnLabel}}</text>
       </button>
     </view>
     <text class="hint">{{hint}}</text>
 
-    <view class="btn-back" bindtap="leaveRoom">← 退出</view>
+    <!-- 聊天入口 -->
+    <view class="chat-bar" bindtap="toggleChat">
+      <text>💬 聊天</text>
+      <text wx:if="{{chatUnread > 0}}" class="chat-badge">{{chatUnread > 99 ? '99+' : chatUnread}}</text>
+    </view>
   </block>
+
+  <!-- 聊天面板（覆盖层） -->
+  <view class="chat-overlay {{chatShow ? 'show' : ''}}">
+    <view class="chat-header">
+      <text class="chat-header-title">💬 聊天</text>
+      <view class="chat-close" bindtap="toggleChat">✕</view>
+    </view>
+    <scroll-view class="chat-body" scroll-y="true" scroll-into-view="chatBottom" scroll-with-animation="true">
+      <view class="chat-msg-list">
+        <view class="chat-msg {{msg.from === 'me' ? 'me' : 'other'}}" wx:for="{{chatMessages}}" wx:key="index">
+          <view class="chat-bubble">{{msg.text}}</view>
+          <text class="chat-time">{{msg.time}}</text>
+        </view>
+        <view id="chatBottom"></view>
+      </view>
+      <view class="chat-empty" wx:if="{{chatMessages.length === 0}}">
+        <text>还没有消息，发一条吧</text>
+      </view>
+    </scroll-view>
+    <view class="chat-foot">
+      <input class="chat-input" placeholder="输入消息..." maxlength="200"
+             value="{{chatInput}}" bindinput="onChatInput"
+             confirm-type="send" bindconfirm="sendChat" />
+      <button class="chat-send" bindtap="sendChat">发送</button>
+    </view>
+  </view>
 
 </view>

@@ -4,9 +4,15 @@
   "description": "手机互振应用",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "upload:mp": "node scripts/upload.js"
   },
   "dependencies": {
+    "miniprogram-ci": "^2.1.31",
+    "mqtt": "^5.15.1",
     "ws": "^8.16.0"
-  }
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }
